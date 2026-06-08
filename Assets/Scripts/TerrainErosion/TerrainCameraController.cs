@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -22,12 +23,12 @@ public class TerrainCameraController : MonoBehaviour
         yaw = angles.y;
         pitch = angles.x;
 
-        LockCursor();
+        UnlockCursor();
     }
 
     private void Update()
     {
-        // ДЛЯ ЗАЩИТЫ: камера нужна только для свободного осмотра сгенерированного mesh-ландшафта.
+        // Камера нужна только для свободного осмотра сгенерированного mesh-ландшафта.
         RotateCamera();
         MoveCamera();
         UpdateCursorLock();
@@ -35,6 +36,11 @@ public class TerrainCameraController : MonoBehaviour
 
     private void RotateCamera()
     {
+        if (Cursor.lockState != CursorLockMode.Locked)
+        {
+            return;
+        }
+
         Vector2 mouseDelta = Vector2.zero;
 
 #if ENABLE_INPUT_SYSTEM
@@ -123,7 +129,7 @@ public class TerrainCameraController : MonoBehaviour
             UnlockCursor();
         }
 
-        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && !IsPointerOverUI())
         {
             LockCursor();
         }
@@ -133,11 +139,16 @@ public class TerrainCameraController : MonoBehaviour
             UnlockCursor();
         }
 
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0) && !IsPointerOverUI())
         {
             LockCursor();
         }
 #endif
+    }
+
+    private bool IsPointerOverUI()
+    {
+        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
     }
 
     private void LockCursor()

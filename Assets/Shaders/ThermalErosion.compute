@@ -1,0 +1,77 @@
+#pragma kernel CSMain
+
+StructuredBuffer<float> InputHeights;
+RWStructuredBuffer<float> OutputHeights;
+
+int Resolution;
+float TalusThreshold;
+float ErosionStrength;
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    int x = (int)id.x;
+    int y = (int)id.y;
+
+    // Лишние GPU-потоки за границей heightmap сразу завершаются.
+    if (x >= Resolution || y >= Resolution)
+    {
+        return;
+    }
+
+    int index = y * Resolution + x;
+    float currentHeight = InputHeights[index];
+
+    int leftIndex = y * Resolution + max(x - 1, 0);
+    int rightIndex = y * Resolution + min(x + 1, Resolution - 1);
+    int upIndex = max(y - 1, 0) * Resolution + x;
+    int downIndex = min(y + 1, Resolution - 1) * Resolution + x;
+
+    // Читаем только старые значения соседей из InputHeights.
+    float left = InputHeights[leftIndex];
+    float right = InputHeights[rightIndex];
+    float up = InputHeights[upIndex];
+    float down = InputHeights[downIndex];
+
+    float totalErosion = 0.0;
+    int erosionDirections = 0;
+
+    float difference = currentHeight - left;
+    if (difference > TalusThreshold)
+    {
+        totalErosion += difference - TalusThreshold;
+        erosionDirections++;
+    }
+
+    difference = currentHeight - right;
+    if (difference > TalusThreshold)
+    {
+        totalErosion += difference - TalusThreshold;
+        erosionDirections++;
+    }
+
+    difference = currentHeight - up;
+    if (difference > TalusThreshold)
+    {
+        totalErosion += difference - TalusThreshold;
+        erosionDirections++;
+    }
+
+    difference = currentHeight - down;
+    if (difference > TalusThreshold)
+    {
+        totalErosion += difference - TalusThreshold;
+        erosionDirections++;
+    }
+
+    float newHeight = currentHeight;
+
+    // Пишем только текущую ячейку, соседей не меняем, чтобы избежать race condition.
+    if (erosionDirections > 0)
+    {
+        float averageErosion = totalErosion / erosionDirections;
+        newHeight = currentHeight - averageErosion * ErosionStrength;
+    }
+
+    OutputHeights[index] = newHeight;
+}
